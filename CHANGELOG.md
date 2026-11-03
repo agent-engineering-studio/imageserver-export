@@ -5,3 +5,17 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-11-03
+
+### Added
+
+- `ImageServer.export(grid, dest)`: an area of any ArcGIS ImageServer as one
+  tiled, compressed GeoTIFF, written to `.part` and renamed only when whole.
+- `Grid.from_lonlat` / `Grid.snap`: a target grid on whole pixels, reprojected
+  with densified edges; `plan()` cuts it into tiles the server accepts.
+- `export_params` / `check_image`: one `exportImage` request, and the JSON
+  error an ImageServer sends with HTTP 200.
+- `ImageServer.info()`, `attribute_table()`, `list_services()`, and `eea(name)`
+  for the European Environment Agency's open Copernicus Land layers.
+- `send=`: route every request through your own HTTP layer.

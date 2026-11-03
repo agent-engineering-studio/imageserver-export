@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import package_name
+import imageserver_export
 
 
 def test_version_is_exposed() -> None:
-    assert package_name.__version__
+    assert imageserver_export.__version__

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 256" role="img" aria-label="Why nearest neighbour: between a 0 percent pixel and a 255 no-data pixel, bilinear resampling invents a plausible 64 percent; nearest neighbour keeps the two real values">
+<style>
+  .bg{fill:#fcfcfb} .t1{fill:#0b0b0b} .t2{fill:#52514e} .chip{fill:#f0efec}
+  .ln{stroke:#7a7974} .box{fill:#f0efec;stroke:#b9b8b2}
+  @media (prefers-color-scheme: dark){ .bg{fill:#1a1a19} .t1{fill:#f0efec} .t2{fill:#c3c2b7}
+    .chip{fill:#2a2a28} .ln{stroke:#9a9993} .box{fill:#2a2a28;stroke:#55544f} }
+  text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+</style>
+<rect class="bg" width="1000" height="256" rx="14"/>
+<text class="t1" x="40" y="44" font-size="17" font-weight="700">The source: two real pixels</text>
+<rect x="40" y="66" width="92" height="92" rx="6" fill="#f0efec"/><text class="t1" x="86" y="120" font-size="20" font-weight="600" text-anchor="middle">0 %</text><rect x="136" y="66" width="92" height="92" rx="6" fill="#3b3a37"/><text class="chip" x="182" y="120" font-size="20" font-weight="600" text-anchor="middle">255</text>
+<text class="t2" x="40" y="190" font-size="13">0 % sealed, and 255 = "no data"</text>
+<text class="t2" x="40" y="210" font-size="13">(the sea, or outside Europe)</text>
+<text class="t1" x="360" y="44" font-size="17" font-weight="700">Bilinear: a value nobody measured</text>
+<rect x="360" y="66" width="92" height="92" rx="6" fill="#f0efec"/><text class="t1" x="406" y="120" font-size="20" font-weight="600" text-anchor="middle">0 %</text><rect x="456" y="66" width="92" height="92" rx="6" fill="#e38443"/><text class="t1" x="502" y="120" font-size="20" font-weight="600" text-anchor="middle">64 %</text><rect x="552" y="66" width="92" height="92" rx="6" fill="#3b3a37"/><text class="chip" x="598" y="120" font-size="20" font-weight="600" text-anchor="middle">255</text>
+<text class="t2" x="360" y="190" font-size="13">A quarter of the way from 0 to 255 is 64:</text>
+<text class="t2" x="360" y="210" font-size="13">a believable "64 % sealed",</text>
+<text class="t2" x="360" y="230" font-size="13">exactly where there is no data.</text>
+<text class="t1" x="720" y="44" font-size="17" font-weight="700">Nearest neighbour: kept</text>
+<rect x="720" y="66" width="92" height="92" rx="6" fill="#f0efec"/><text class="t1" x="766" y="120" font-size="20" font-weight="600" text-anchor="middle">0 %</text><rect x="816" y="66" width="92" height="92" rx="6" fill="#3b3a37"/><text class="chip" x="862" y="120" font-size="20" font-weight="600" text-anchor="middle">255</text>
+<text class="t2" x="720" y="190" font-size="13">Every output pixel is a real one.</text>
+<text class="t2" x="720" y="210" font-size="13">The default of this library.</text>
+</svg>
