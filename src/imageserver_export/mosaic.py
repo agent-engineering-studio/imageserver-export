@@ -5,11 +5,38 @@ from __future__ import annotations
 from collections.abc import Mapping
 from pathlib import Path
 from types import TracebackType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from imageserver_export.errors import ImageServerError
 from imageserver_export.grid import Grid
 from imageserver_export.tiles import Tile
+
+if TYPE_CHECKING:
+    import numpy as np
+
+
+def valid_mask(
+    band: np.ndarray, *, valid_range: tuple[float, float] | None, nodata: float | None
+) -> np.ndarray:
+    """Which pixels hold data: inside ``valid_range``, else not ``nodata``, else all."""
+    import numpy as np
+
+    if valid_range is not None:
+        low, high = valid_range
+        mask: np.ndarray = (band >= low) & (band <= high)
+        return mask
+    if nodata is not None:
+        return np.asarray(band != nodata)
+    return np.ones(band.shape, dtype=bool)
+
+
+def read_band(image: bytes) -> np.ndarray:
+    """The first band of a GeoTIFF held in memory."""
+    from rasterio.io import MemoryFile
+
+    with MemoryFile(image) as mem, mem.open() as src:
+        band: np.ndarray = src.read(1)
+    return band
 
 
 class Mosaic:
@@ -88,11 +115,9 @@ class Mosaic:
         would shift the data by however many pixels the service got wrong.
         """
         import numpy as np
-        from rasterio.io import MemoryFile
         from rasterio.windows import Window
 
-        with MemoryFile(image) as mem, mem.open() as src:
-            band = src.read(1)
+        band = read_band(image)
         if band.shape != (tile.height, tile.width):
             raise ImageServerError(
                 f"the service returned {band.shape[1]}x{band.shape[0]} pixels "
@@ -100,12 +125,18 @@ class Mosaic:
             )
         band = band.astype(self.dtype, copy=False)
         self._dst.write(band, 1, window=Window(tile.col_off, tile.row_off, tile.width, tile.height))
-        if self.valid_range is not None:
-            low, high = self.valid_range
-            valid = int(np.count_nonzero((band >= low) & (band <= high)))
-        elif self.nodata is not None:
-            valid = int(np.count_nonzero(band != self.nodata))
-        else:
-            valid = int(band.size)
+        valid = int(
+            np.count_nonzero(valid_mask(band, valid_range=self.valid_range, nodata=self.nodata))
+        )
         self.valid_px += valid
         return valid
+
+    def fill(self, tile: Tile) -> None:
+        """Write ``nodata`` into a tile's window: a tile known to hold no data."""
+        import numpy as np
+        from rasterio.windows import Window
+
+        if self.nodata is None:
+            raise ValueError("filling a tile needs a nodata value")
+        band = np.full((tile.height, tile.width), self.nodata, dtype=self.dtype)
+        self._dst.write(band, 1, window=Window(tile.col_off, tile.row_off, tile.width, tile.height))

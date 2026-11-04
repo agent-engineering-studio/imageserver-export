@@ -1,6 +1,6 @@
 [project]
 name = "imageserver-export"
-version = "0.1.0"
+version = "0.2.0"
 description = "Export ArcGIS ImageServer rasters (like the open Copernicus Land layers the EEA serves) to aligned, atomic GeoTIFF mosaics"
 readme = "README.md"
 keywords = ["arcgis", "imageserver", "geotiff", "raster", "copernicus", "eea", "land monitoring", "imperviousness", "gis"]
@@ -27,6 +27,15 @@ dependencies = [
     "rasterio>=1.3",
 ]
 
+[project.optional-dependencies]
+# The imageserver-mcp server for AI agents: imageserver_export.mcp_server.
+mcp = [
+    "mcp>=2.0",
+]
+
+[project.scripts]
+imageserver-mcp = "imageserver_export.mcp_server:main"
+
 [project.urls]
 Homepage = "https://github.com/agent-engineering-studio/imageserver-export"
 Issues = "https://github.com/agent-engineering-studio/imageserver-export/issues"
@@ -38,6 +47,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "imageserver-export[mcp]",
     "mypy>=1.13",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",

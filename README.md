@@ -43,6 +43,7 @@ Three dependencies: `httpx`, `numpy`, `rasterio`.
 - [How it works](#how-it-works)
 - [Why nearest neighbour](#why-nearest-neighbour)
 - [Recipes](#recipes)
+- [For AI agents: the MCP server](#for-ai-agents-the-mcp-server)
 - [The traps we already fell into](#the-traps-we-already-fell-into)
 - [API at a glance](#api-at-a-glance)
 - [Data licence and credits](#data-licence-and-credits)
@@ -222,6 +223,41 @@ async with ImageServer(eea("HRL_TreeCoverDensity_2018")) as server:
     )
 ```
 
+### A whole country, without asking for the sea
+
+```python
+grid = Grid.from_lonlat((6.6, 35.5, 18.6, 47.1), res=100)  # Italy
+async with ImageServer(eea("HRL_ImperviousnessDensity_2018")) as server:
+    result = await server.export(
+        grid, Path("italy.tif"), valid_range=(0, 100), skip_empty=True, resume=True
+    )
+print(result.skipped, "of", result.tiles, "tiles were only sea")
+```
+
+`skip_empty` asks first for one overview, 32 times coarser at the default
+tile size, and sends no request for a tile with no data on it or next to it:
+those are filled with "no data". Around Lampedusa it skipped 6 tiles out of
+9, with the same pixels as the full export. A feature smaller than one
+overview pixel and surrounded by sea can be missed, so it is off by default.
+
+`resume` keeps every tile that arrived in `italy.tif.tiles/`: if the export
+fails half way, running it again only asks for the missing ones.
+
+### From 100 m pixels to 1 km cells
+
+```python
+from imageserver_export import aggregate
+
+cells = aggregate(Path("italy.tif"), 10, valid_range=(0, 100))
+cells.mean  # mean sealed soil per 1 km cell, NaN where no data
+cells.valid_fraction  # share of each cell that held real data
+cells.grid  # the 1 km grid, same corner as the raster
+```
+
+Sentinels stay out of the mean: a coastal cell half in the sea is the mean
+of its land, with `valid_fraction` 0.5, not 128 % sealed. The raster is read
+one strip of cells at a time.
+
 ### Your own grid, in your CRS
 
 ```python
@@ -275,6 +311,47 @@ async def send(method: str, url: str, **kw) -> httpx.Response:
 server = ImageServer(url, send=send)  # every request goes through `send`
 ```
 
+## For AI agents: the MCP server
+
+```bash
+pip install "imageserver-export[mcp]"
+claude mcp add imageserver -- imageserver-mcp     # Claude Code
+```
+
+Or in Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "imageserver": { "command": "imageserver-mcp" } } }
+```
+
+Then ask *"how much of the ground is sealed around Milan, and what is the
+value at the Duomo?"*. The agent gets six tools:
+
+| Tool | What it answers |
+|---|---|
+| `list_layers` | the layers of a folder (by default the EEA's 26 Copernicus Land layers) |
+| `describe_layer` | pixel type, native resolution, CRS, extent, and what each value means |
+| `attribute_table` | the raster attribute table, up to `limit` rows |
+| `sample_point` | the value at a longitude/latitude, with its label |
+| `area_summary` | mean, min, max, valid share and class counts (with labels) of a box |
+| `export_area` | writes a box as a GeoTIFF into the output folder (the only tool that writes) |
+
+A `service` is an EEA layer name or the URL of any ImageServer. **Every
+number comes from the library, not from the model**: the agent finds the
+data and explains it, the same rule as in Limen. Areas are capped
+(4 million pixels for a summary, 25 million for an export) and a refusal
+says which resolution would fit, so a single call cannot ask a server for a
+continent at 10 m.
+
+Over HTTP: `imageserver-mcp --transport streamable-http --port 8768` serves
+`/mcp`, and `/health` for container healthchecks. Every option also reads
+an environment variable (`IMAGESERVER_MCP_TRANSPORT`, `_HOST`, `_PORT`,
+`_ALLOWED_HOSTS`, `_OUTPUT`).
+
+Tried live: the Duomo of Milan is `100% imperviousness value`; the box of
+Milan and its belt at 100 m is 27.9 % sealed on average, 59 % of it not
+sealed at all.
+
 ## The traps we already fell into
 
 - **"200 OK" is not success.** An ImageServer answers a bad request with
@@ -297,12 +374,13 @@ server = ImageServer(url, send=send)  # every request goes through `send`
 | `ImageServer(url, client=None, *, send=None, retries=3)` | the async client |
 | `await server.info()` | `ServiceInfo`: pixel type, size, extent, largest image, CRS |
 | `await server.attribute_table()` | the raster attribute table, as dicts |
-| `await server.export(grid, dest, ...)` | `Export(path, tiles, width, height, valid_px)` |
+| `await server.export(grid, dest, ..., skip_empty=False, resume=False, tags=None)` | `Export(path, tiles, width, height, valid_px, skipped, reused)` |
 | `await list_services(folder_url)` | the ImageServer names of a folder |
 | `Grid.from_lonlat(box, res, crs=3035)`, `Grid.snap(bounds, res, crs)` | the target grid |
 | `plan(grid, tile_px=2048)`, `Tile.bounds(grid)` | the tiles |
 | `export_params(...)`, `check_image(...)` | one request, pure |
 | `Mosaic(path, grid, ...)` | the atomic GeoTIFF writer |
+| `aggregate(path, factor, valid_range=None)` | `Aggregate(grid, mean, valid_fraction)`: coarse cells |
 | `eea(name)`, `EEA_URL`, `EEA_FOLDER` | the European Environment Agency's server |
 
 Full reference: [agentengineering.it/imageserver-export](https://agentengineering.it/imageserver-export/).
