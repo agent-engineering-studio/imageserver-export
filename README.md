@@ -73,6 +73,7 @@ This library does that part for you.
 | 🧩 | **Big areas in pieces** | The area is cut into tiles the server accepts, fetched a few at a time, and pasted as they arrive. A whole country is just more tiles. |
 | 🛟 | **A file or nothing** | The mosaic is written to `out.tif.part` and renamed only when every tile is in. A failure leaves nothing a later reader could mistake for a whole map. |
 | 🚨 | **Errors that say why** | A JSON error sent with "200 OK", or a tile of the wrong size, stops the export with the server's own message. |
+| 🧾 | **Where it came from** | The file carries its own provenance as GeoTIFF tags: service URL, interpolation, valid range, valid pixels, when and with which version. Add your own with `tags=`. |
 | 🏷️ | **What the values mean** | `info()` describes the service (pixel type, size, extent, largest image); `attribute_table()` gives the label of every pixel value. |
 | 🔌 | **Your HTTP, your rules** | Bring your own `httpx.AsyncClient`, or a `send` function: a shared retry policy, a cache or a rate limiter then sees every request. |
 
@@ -184,7 +185,8 @@ flowchart LR
    answer into an error with the server's message.
 4. **The mosaic.** `Mosaic` writes a tiled, deflate-compressed GeoTIFF to
    `.part`, refuses a tile whose size differs from the one asked for, counts
-   the valid pixels, and renames the file only on success.
+   the valid pixels, writes the provenance tags, and renames the file only
+   on success.
 
 Every step is a plain function or class you can use alone; `ImageServer`
 just puts them together.

@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Provenance in every export: the GeoTIFF records `source` (the service URL),
+  `interpolation`, `pixel_type`, `valid_range`, `created` (UTC), `software`
+  and `valid_px` as metadata tags. `export(..., tags={...})` adds to them;
+  `Mosaic(..., tags=...)` writes them when the mosaic is whole.
+
 ## [0.1.0] - 2026-11-03
 
 ### Added

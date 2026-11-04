@@ -81,6 +81,28 @@ async def test_export_writes_a_whole_aligned_geotiff(tmp_path: Path) -> None:
     assert not list(tmp_path.glob("*.part"))
 
 
+async def test_export_records_where_its_pixels_came_from(tmp_path: Path) -> None:
+    async with _server(_Server()) as s:
+        await s.export(
+            GRID, tmp_path / "out.tif", tile_px=3, valid_range=(0, 100), tags={"layer": "IMD"}
+        )
+    with rasterio.open(tmp_path / "out.tif") as r:
+        tags = r.tags()
+    assert tags["source"] == URL and tags["layer"] == "IMD"
+    assert tags["interpolation"] == "RSP_NearestNeighbor" and tags["pixel_type"] == "U8"
+    assert tags["valid_range"] == "0,100" and tags["valid_px"] == "15"
+    assert tags["software"].startswith("imageserver-export ")
+    assert tags["created"].endswith("+00:00")
+
+
+async def test_export_without_a_range_and_overridden_tags(tmp_path: Path) -> None:
+    async with _server(_Server()) as s:
+        await s.export(GRID, tmp_path / "out.tif", tags={"source": "mirror"})
+    with rasterio.open(tmp_path / "out.tif") as r:
+        tags = r.tags()
+    assert tags["source"] == "mirror" and "valid_range" not in tags
+
+
 async def test_a_json_error_with_http_200_stops_and_leaves_nothing(tmp_path: Path) -> None:
     def refuses(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(
