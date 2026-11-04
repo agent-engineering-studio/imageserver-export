@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -17,6 +18,9 @@ class Mosaic:
     Used as a context manager: on a clean exit the ``.part`` is renamed to
     ``path``; on an exception it is deleted. A half-written raster that a
     later reader takes for a whole one is worse than no raster.
+
+    ``tags`` are written as GeoTIFF metadata when the mosaic is whole,
+    together with ``valid_px``: where the pixels came from travels with them.
     """
 
     def __init__(
@@ -27,6 +31,7 @@ class Mosaic:
         dtype: str = "uint8",
         nodata: float | None = 255,
         valid_range: tuple[float, float] | None = None,
+        tags: Mapping[str, str] | None = None,
     ) -> None:
         self.path = path
         self.partial = path.with_name(f"{path.name}.part")
@@ -34,6 +39,7 @@ class Mosaic:
         self.dtype = dtype
         self.nodata = nodata
         self.valid_range = valid_range
+        self.tags = dict(tags or {})
         self.valid_px = 0
         self._dst: Any = None
 
@@ -67,6 +73,8 @@ class Mosaic:
         tb: TracebackType | None,
     ) -> None:
         if self._dst is not None:
+            if exc_type is None:
+                self._dst.update_tags(**self.tags, valid_px=str(self.valid_px))
             self._dst.close()
         if exc_type is None:
             self.partial.replace(self.path)

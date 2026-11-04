@@ -13,8 +13,10 @@ retrying of its own.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from importlib.metadata import version
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -115,6 +117,7 @@ class ImageServer:
         tile_px: int = DEFAULT_TILE_PX,
         concurrency: int = 3,
         on_tile: Callable[[int, int], None] | None = None,
+        tags: Mapping[str, str] | None = None,
     ) -> Export:
         """``grid`` of this service as a GeoTIFF at ``dest``, written atomically.
 
@@ -123,8 +126,23 @@ class ImageServer:
         counts the valid pixels (e.g. ``(0, 100)`` for a percentage layer
         that uses 254 and 255 as sentinels); without it, every pixel that is
         not ``nodata`` counts.
+
+        The file records where it came from as GeoTIFF metadata: ``source``
+        (the service URL), ``interpolation``, ``pixel_type``, ``valid_range``,
+        ``created`` (UTC), ``software`` and ``valid_px``. ``tags`` adds to
+        them, or overrides them.
         """
         tiles = plan(grid, tile_px=tile_px)
+        provenance = {
+            "source": self.url,
+            "interpolation": interpolation,
+            "pixel_type": pixel_type,
+            "created": datetime.now(UTC).isoformat(timespec="seconds"),
+            "software": f"imageserver-export {version('imageserver-export')}",
+        }
+        if valid_range is not None:
+            provenance["valid_range"] = f"{valid_range[0]:g},{valid_range[1]:g}"
+        provenance.update(tags or {})
         gate = asyncio.Semaphore(concurrency)
 
         async def one(tile: Tile) -> tuple[Tile, bytes]:
@@ -143,7 +161,9 @@ class ImageServer:
             ctype = response.headers.get("content-type", "")
             return tile, check_image(response.status_code, ctype, response.content)
 
-        with Mosaic(dest, grid, dtype=dtype, nodata=nodata, valid_range=valid_range) as mosaic:
+        with Mosaic(
+            dest, grid, dtype=dtype, nodata=nodata, valid_range=valid_range, tags=provenance
+        ) as mosaic:
             pending = [asyncio.ensure_future(one(t)) for t in tiles]
             try:
                 for done, future in enumerate(asyncio.as_completed(pending), 1):
