@@ -43,6 +43,7 @@ Three dependencies: `httpx`, `numpy`, `rasterio`.
 - [How it works](#how-it-works)
 - [Why nearest neighbour](#why-nearest-neighbour)
 - [Recipes](#recipes)
+- [For AI agents: the MCP server](#for-ai-agents-the-mcp-server)
 - [The traps we already fell into](#the-traps-we-already-fell-into)
 - [API at a glance](#api-at-a-glance)
 - [Data licence and credits](#data-licence-and-credits)
@@ -309,6 +310,47 @@ async def send(method: str, url: str, **kw) -> httpx.Response:
 
 server = ImageServer(url, send=send)  # every request goes through `send`
 ```
+
+## For AI agents: the MCP server
+
+```bash
+pip install "imageserver-export[mcp]"
+claude mcp add imageserver -- imageserver-mcp     # Claude Code
+```
+
+Or in Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "imageserver": { "command": "imageserver-mcp" } } }
+```
+
+Then ask *"how much of the ground is sealed around Milan, and what is the
+value at the Duomo?"*. The agent gets six tools:
+
+| Tool | What it answers |
+|---|---|
+| `list_layers` | the layers of a folder (by default the EEA's 26 Copernicus Land layers) |
+| `describe_layer` | pixel type, native resolution, CRS, extent, and what each value means |
+| `attribute_table` | the raster attribute table, up to `limit` rows |
+| `sample_point` | the value at a longitude/latitude, with its label |
+| `area_summary` | mean, min, max, valid share and class counts (with labels) of a box |
+| `export_area` | writes a box as a GeoTIFF into the output folder (the only tool that writes) |
+
+A `service` is an EEA layer name or the URL of any ImageServer. **Every
+number comes from the library, not from the model**: the agent finds the
+data and explains it, the same rule as in Limen. Areas are capped
+(4 million pixels for a summary, 25 million for an export) and a refusal
+says which resolution would fit, so a single call cannot ask a server for a
+continent at 10 m.
+
+Over HTTP: `imageserver-mcp --transport streamable-http --port 8768` serves
+`/mcp`, and `/health` for container healthchecks. Every option also reads
+an environment variable (`IMAGESERVER_MCP_TRANSPORT`, `_HOST`, `_PORT`,
+`_ALLOWED_HOSTS`, `_OUTPUT`).
+
+Tried live: the Duomo of Milan is `100% imperviousness value`; the box of
+Milan and its belt at 100 m is 27.9 % sealed on average, 59 % of it not
+sealed at all.
 
 ## The traps we already fell into
 

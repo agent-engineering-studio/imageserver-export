@@ -23,6 +23,12 @@ All notable changes to this project are documented here. The format follows
 - `aggregate(path, factor, valid_range=...)`: the mean and the valid share
   of each `factor` x `factor` cell, read one strip at a time.
 - `Mosaic.fill(tile)`, `occupied()`, `valid_mask()`, `read_band()`.
+- `imageserver-mcp`, an MCP server for AI agents (`pip install
+  "imageserver-export[mcp]"`): `list_layers`, `describe_layer`,
+  `attribute_table`, `sample_point`, `area_summary`, `export_area`. Every
+  number is computed by the library; areas are capped in pixels; only
+  `export_area` writes, into the output folder. stdio or streamable HTTP
+  (`/mcp`, `/health`).
 
 ## [0.1.0] - 2026-11-03
 
