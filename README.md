@@ -222,6 +222,41 @@ async with ImageServer(eea("HRL_TreeCoverDensity_2018")) as server:
     )
 ```
 
+### A whole country, without asking for the sea
+
+```python
+grid = Grid.from_lonlat((6.6, 35.5, 18.6, 47.1), res=100)  # Italy
+async with ImageServer(eea("HRL_ImperviousnessDensity_2018")) as server:
+    result = await server.export(
+        grid, Path("italy.tif"), valid_range=(0, 100), skip_empty=True, resume=True
+    )
+print(result.skipped, "of", result.tiles, "tiles were only sea")
+```
+
+`skip_empty` asks first for one overview, 32 times coarser at the default
+tile size, and sends no request for a tile with no data on it or next to it:
+those are filled with "no data". Around Lampedusa it skipped 6 tiles out of
+9, with the same pixels as the full export. A feature smaller than one
+overview pixel and surrounded by sea can be missed, so it is off by default.
+
+`resume` keeps every tile that arrived in `italy.tif.tiles/`: if the export
+fails half way, running it again only asks for the missing ones.
+
+### From 100 m pixels to 1 km cells
+
+```python
+from imageserver_export import aggregate
+
+cells = aggregate(Path("italy.tif"), 10, valid_range=(0, 100))
+cells.mean  # mean sealed soil per 1 km cell, NaN where no data
+cells.valid_fraction  # share of each cell that held real data
+cells.grid  # the 1 km grid, same corner as the raster
+```
+
+Sentinels stay out of the mean: a coastal cell half in the sea is the mean
+of its land, with `valid_fraction` 0.5, not 128 % sealed. The raster is read
+one strip of cells at a time.
+
 ### Your own grid, in your CRS
 
 ```python
@@ -297,12 +332,13 @@ server = ImageServer(url, send=send)  # every request goes through `send`
 | `ImageServer(url, client=None, *, send=None, retries=3)` | the async client |
 | `await server.info()` | `ServiceInfo`: pixel type, size, extent, largest image, CRS |
 | `await server.attribute_table()` | the raster attribute table, as dicts |
-| `await server.export(grid, dest, ...)` | `Export(path, tiles, width, height, valid_px)` |
+| `await server.export(grid, dest, ..., skip_empty=False, resume=False, tags=None)` | `Export(path, tiles, width, height, valid_px, skipped, reused)` |
 | `await list_services(folder_url)` | the ImageServer names of a folder |
 | `Grid.from_lonlat(box, res, crs=3035)`, `Grid.snap(bounds, res, crs)` | the target grid |
 | `plan(grid, tile_px=2048)`, `Tile.bounds(grid)` | the tiles |
 | `export_params(...)`, `check_image(...)` | one request, pure |
 | `Mosaic(path, grid, ...)` | the atomic GeoTIFF writer |
+| `aggregate(path, factor, valid_range=None)` | `Aggregate(grid, mean, valid_fraction)`: coarse cells |
 | `eea(name)`, `EEA_URL`, `EEA_FOLDER` | the European Environment Agency's server |
 
 Full reference: [agentengineering.it/imageserver-export](https://agentengineering.it/imageserver-export/).

@@ -10,7 +10,15 @@ import pytest
 import rasterio
 from conftest import tiff
 
-from imageserver_export import Grid, ImageServer, ImageServerError, Mosaic, Tile, list_services
+from imageserver_export import (
+    Grid,
+    ImageServer,
+    ImageServerError,
+    Mosaic,
+    Tile,
+    list_services,
+    occupied,
+)
 
 URL = "https://example.org/arcgis/rest/services/Layer/ImageServer"
 GRID = Grid(crs=3035, left=0.0, top=1000.0, res=100.0, width=7, height=5)
@@ -199,3 +207,92 @@ def test_mosaic_counts_without_a_range(tmp_path: Path) -> None:
         assert m.paste(Tile(0, 0, 2, 2), tiff(2, 2, 0)) == 4
     with rasterio.open(tmp_path / "b.tif") as r:
         assert np.array_equal(r.read(1), np.zeros((2, 2)))
+
+
+async def test_skip_empty_sends_no_request_for_tiles_without_data(tmp_path: Path) -> None:
+    # Data (7) only in the tiles whose bbox starts at x=0; 250 elsewhere is
+    # outside the valid range. The middle column touches the data and stays.
+    server = _Server()
+    progress: list[tuple[int, int]] = []
+    async with _server(server) as s:
+        result = await s.export(
+            GRID,
+            tmp_path / "out.tif",
+            tile_px=3,
+            valid_range=(0, 100),
+            skip_empty=True,
+            on_tile=lambda d, t: progress.append((d, t)),
+        )
+    assert (result.tiles, result.skipped) == (6, 2)
+    assert progress == [(i, 6) for i in range(1, 7)]
+    # 6 overview tiles (factor 1 at this tile size) + 4 real ones.
+    assert len(server.requests) == 10
+    with rasterio.open(tmp_path / "out.tif") as r:
+        band = r.read(1)
+    assert (band[:, :3] == 7).all() and (band[:, 3:6] == 250).all() and (band[:, 6] == 255).all()
+
+
+async def test_skip_empty_needs_nodata_and_a_whole_overview(tmp_path: Path) -> None:
+    async with _server(_Server()) as s:
+        with pytest.raises(ValueError, match="nodata"):
+            await s.export(GRID, tmp_path / "out.tif", nodata=None, skip_empty=True)
+
+    def wrong_size(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=tiff(2, 2), headers={"content-type": "image/tiff"})
+
+    async with _server(wrong_size) as s:
+        with pytest.raises(ImageServerError, match="overview tile"):
+            await s.export(GRID, tmp_path / "out.tif", skip_empty=True)
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_resume_reuses_the_tiles_of_a_failed_run(tmp_path: Path) -> None:
+    server = _Server()
+    calls = 0
+
+    def flaky(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 4:
+            return httpx.Response(
+                200,
+                json={"error": {"message": "busy"}},
+                headers={"content-type": "application/json"},
+            )
+        return server(request)
+
+    dest = tmp_path / "out.tif"
+    cache = tmp_path / "out.tif.tiles"
+    async with _server(flaky) as s:
+        with pytest.raises(ImageServerError, match="busy"):
+            await s.export(GRID, dest, tile_px=3, concurrency=1, resume=True)
+    assert not dest.exists() and cache.is_dir()
+    kept = len(list(cache.glob("*.tif")))
+    assert kept >= 1
+
+    server.requests.clear()
+    async with _server(server) as s:
+        result = await s.export(GRID, dest, tile_px=3, concurrency=1, resume=True)
+    assert result.reused == kept and len(server.requests) == 6 - kept
+    assert dest.exists() and not cache.exists()
+    with rasterio.open(dest) as r:
+        band = r.read(1)
+    assert (band[:, :3] == 7).all() and (band[:, 3:] == 250).all()
+
+
+def test_occupied_looks_one_overview_pixel_past_the_tile() -> None:
+    valid = np.zeros((4, 4), dtype=bool)
+    valid[0, 2] = True
+    assert occupied(Tile(0, 0, 4, 4), valid, factor=2)  # overview cols 0-1, grown to 2
+    assert not occupied(Tile(0, 0, 2, 2), valid, factor=2)  # overview col 0, grown to 1
+    assert occupied(Tile(4, 0, 4, 4), valid, factor=2)
+
+
+def test_mosaic_fill_needs_nodata(tmp_path: Path) -> None:
+    g = Grid(crs=3035, left=0.0, top=200.0, res=100.0, width=2, height=2)
+    with pytest.raises(ValueError, match="nodata"), Mosaic(tmp_path / "a.tif", g, nodata=None) as m:
+        m.fill(Tile(0, 0, 2, 2))
+    with Mosaic(tmp_path / "b.tif", g) as m:
+        m.fill(Tile(0, 0, 2, 2))
+    with rasterio.open(tmp_path / "b.tif") as r:
+        assert (r.read(1) == 255).all() and r.tags()["valid_px"] == "0"

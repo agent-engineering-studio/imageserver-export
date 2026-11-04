@@ -6,12 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-04
+
 ### Added
 
 - Provenance in every export: the GeoTIFF records `source` (the service URL),
   `interpolation`, `pixel_type`, `valid_range`, `created` (UTC), `software`
   and `valid_px` as metadata tags. `export(..., tags={...})` adds to them;
   `Mosaic(..., tags=...)` writes them when the mosaic is whole.
+- `export(..., skip_empty=True)`: one coarse overview first, then no request
+  for the tiles with no data on or next to them, filled with `nodata`.
+  Off by default: a feature smaller than an overview pixel can be missed.
+- `export(..., resume=True)`: checked tiles are kept in `<dest>.tiles/` and
+  reused by the next run after a failure; deleted once the file is whole.
+- `Export.skipped` and `Export.reused`.
+- `aggregate(path, factor, valid_range=...)`: the mean and the valid share
+  of each `factor` x `factor` cell, read one strip at a time.
+- `Mosaic.fill(tile)`, `occupied()`, `valid_mask()`, `read_band()`.
 
 ## [0.1.0] - 2026-11-03
 

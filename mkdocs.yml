@@ -63,6 +63,7 @@ nav:
       - Requests (pure functions): api/request.md
       - Service descriptions: api/service.md
       - Mosaic writer: api/mosaic.md
+      - Coarse cells: api/aggregate.md
       - Errors: api/errors.md
   - Changelog: changelog.md
   - Contributing: contributing.md

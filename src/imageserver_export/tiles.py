@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from imageserver_export.grid import Bounds, Grid
+
+if TYPE_CHECKING:
+    import numpy as np
 
 #: Default tile side: well under the 4,100 px most services allow, so one
 #: failed request costs a few MB, not the whole export.
@@ -41,3 +45,17 @@ def plan(grid: Grid, *, tile_px: int = DEFAULT_TILE_PX) -> list[Tile]:
         for row in range(0, grid.height, tile_px)
         for col in range(0, grid.width, tile_px)
     ]
+
+
+def occupied(tile: Tile, valid: np.ndarray, factor: int) -> bool:
+    """Whether a tile may hold data, judged on an overview ``factor`` times coarser.
+
+    ``valid`` marks the overview pixels that hold data. The tile's footprint
+    on the overview is grown by one overview pixel on every side, so data
+    sampled just across a tile edge still keeps the tile.
+    """
+    r0 = max(tile.row_off // factor - 1, 0)
+    c0 = max(tile.col_off // factor - 1, 0)
+    r1 = (tile.row_off + tile.height - 1) // factor + 2
+    c1 = (tile.col_off + tile.width - 1) // factor + 2
+    return bool(valid[r0:r1, c0:c1].any())

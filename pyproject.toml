@@ -1,6 +1,6 @@
 [project]
 name = "imageserver-export"
-version = "0.1.0"
+version = "0.2.0"
 description = "Export ArcGIS ImageServer rasters (like the open Copernicus Land layers the EEA serves) to aligned, atomic GeoTIFF mosaics"
 readme = "README.md"
 keywords = ["arcgis", "imageserver", "geotiff", "raster", "copernicus", "eea", "land monitoring", "imperviousness", "gis"]
