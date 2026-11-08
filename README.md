@@ -399,7 +399,7 @@ from them.
 uv sync
 make check                                   # ruff, mypy --strict, pytest (100 % coverage)
 uv run --group docs python docs/make_images.py  # redraw the README images from live data
-uv run --group docs mkdocs serve             # the documentation site, locally
+uv run --group docs zensical serve           # the documentation site, locally
 ```
 
 Ideas: a command-line `imageserver-export` entry point; a `bbox` given in

@@ -1,6 +1,6 @@
-# The documentation site: built on every pull request (a broken page fails
-# the check), published to GitHub Pages from main. Pages must use "GitHub
-# Actions" as its source (Settings > Pages), once.
+# The documentation site, built with Zensical (zensical.toml): built on every
+# pull request (a broken page fails the check), published to GitHub Pages from
+# main. Pages must use "GitHub Actions" as its source (Settings > Pages), once.
 name: docs
 
 on:
@@ -26,7 +26,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --only-group docs
-      - run: uv run --no-sync mkdocs build --strict
+      - run: uv run --no-sync zensical build --clean --strict
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
